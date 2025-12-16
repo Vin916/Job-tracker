@@ -130,14 +130,20 @@
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 25px;
       margin-bottom: 50px;
     }
 
-    @media (max-width: 1200px) {
+    @media (max-width: 1400px) {
       .stats-grid {
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 800px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
       }
     }
 
@@ -471,6 +477,12 @@
       border: 1px solid rgba(0, 255, 136, 0.3);
     }
 
+    .status-offer {
+      background: rgba(80, 250, 123, 0.2);
+      color: #50fa7b;
+      border: 1px solid rgba(80, 250, 123, 0.4);
+    }
+
     .status-saved {
       background: rgba(255, 204, 0, 0.15);
       color: var(--accent-yellow);
@@ -614,8 +626,9 @@
             <select class="filter-select" id="statusFilter">
               <option value="">All Statuses</option>
               <option value="APPLIED">Applied</option>
-              <option value="REJECTED">Rejected</option>
               <option value="INTERVIEWING">Interviewing</option>
+              <option value="OFFER">Offer</option>
+              <option value="REJECTED">Rejected</option>
               <option value="SAVED">Saved</option>
               <option value="WITHDRAWN">Withdrawn</option>
             </select>
@@ -758,11 +771,15 @@
           <div class="stat-value">${stats.interviewing}</div>
           <div class="stat-label">Interviewing</div>
         </div>
-        <div class="stat-card fade-in" style="--card-accent: var(--accent-red); animation-delay: 0.3s">
+        <div class="stat-card fade-in" style="--card-accent: #50fa7b; animation-delay: 0.3s">
+          <div class="stat-value">${stats.offer}</div>
+          <div class="stat-label">Offers</div>
+        </div>
+        <div class="stat-card fade-in" style="--card-accent: var(--accent-red); animation-delay: 0.4s">
           <div class="stat-value">${stats.rejected}</div>
           <div class="stat-label">Rejected</div>
         </div>
-        <div class="stat-card fade-in" style="--card-accent: var(--accent-magenta); animation-delay: 0.4s">
+        <div class="stat-card fade-in" style="--card-accent: var(--accent-magenta); animation-delay: 0.5s">
           <div class="stat-value">${stats.responseRate}%</div>
           <div class="stat-label">Response Rate</div>
         </div>
@@ -774,12 +791,13 @@
       const applied = jobsData.filter(j => j.status === 'APPLIED').length;
       const rejected = jobsData.filter(j => j.status === 'REJECTED').length;
       const interviewing = jobsData.filter(j => j.status === 'INTERVIEWING').length;
+      const offer = jobsData.filter(j => j.status === 'OFFER').length;
       const saved = jobsData.filter(j => j.status === 'SAVED').length;
       
-      const responses = rejected + interviewing;
+      const responses = rejected + interviewing + offer;
       const responseRate = total > 0 ? Math.round((responses / total) * 100) : 0;
 
-      return { total, applied, rejected, interviewing, saved, responseRate };
+      return { total, applied, rejected, interviewing, offer, saved, responseRate };
     }
 
     function displayCharts() {
@@ -798,6 +816,7 @@
         'APPLIED': '#00d4ff',
         'REJECTED': '#ff4466',
         'INTERVIEWING': '#00ff88',
+        'OFFER': '#50fa7b',
         'SAVED': '#ffcc00',
         'WITHDRAWN': '#aa66ff'
       };
