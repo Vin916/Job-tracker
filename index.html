@@ -817,6 +817,9 @@
       renderDailyChart();
     }
 
+    let allWeeks = [];
+    let allMonths = [];
+
     function buildDailyData() {
       // Get all unique dates with applications
       const dailyCounts = {};
@@ -830,47 +833,116 @@
       const dates = Object.keys(dailyCounts).sort();
       if (dates.length === 0) return;
       
-      const firstDate = new Date(dates[0]);
+      const firstAppDate = new Date(dates[0]);
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       
-      // Generate all dates from first application to today
-      allDates = [];
-      for (let d = new Date(firstDate); d <= today; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        allDates.push({
-          date: dateStr,
-          count: dailyCounts[dateStr] || 0,
-          dayOfWeek: d.getDay(),
-          dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
-          displayDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      // Build weeks array (Sunday to Saturday)
+      allWeeks = [];
+      
+      // Find the Sunday before or on the first application date
+      let weekStart = new Date(firstAppDate);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Go back to Sunday
+      
+      // Find the Saturday of the current week
+      let currentWeekEnd = new Date(today);
+      currentWeekEnd.setDate(currentWeekEnd.getDate() + (6 - currentWeekEnd.getDay())); // Go forward to Saturday
+      
+      while (weekStart <= currentWeekEnd) {
+        const week = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(weekStart);
+          d.setDate(d.getDate() + i);
+          const dateStr = d.toISOString().split('T')[0];
+          const isFuture = d > today;
+          
+          week.push({
+            date: dateStr,
+            count: isFuture ? null : (dailyCounts[dateStr] || 0),
+            dayOfWeek: d.getDay(),
+            dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+            displayDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            isFuture: isFuture
+          });
+        }
+        allWeeks.push(week);
+        weekStart.setDate(weekStart.getDate() + 7);
+      }
+      
+      // Build months array
+      allMonths = [];
+      
+      // Start from the 1st of the month of the first application
+      let monthStart = new Date(firstAppDate.getFullYear(), firstAppDate.getMonth(), 1);
+      
+      // End at the last day of the current month
+      let currentMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      
+      while (monthStart <= currentMonthEnd) {
+        const month = [];
+        const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
+        
+        for (let i = 1; i <= daysInMonth; i++) {
+          const d = new Date(monthStart.getFullYear(), monthStart.getMonth(), i);
+          const dateStr = d.toISOString().split('T')[0];
+          const isFuture = d > today;
+          
+          month.push({
+            date: dateStr,
+            count: isFuture ? null : (dailyCounts[dateStr] || 0),
+            dayOfWeek: d.getDay(),
+            dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+            displayDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            isFuture: isFuture
+          });
+        }
+        allMonths.push({
+          label: monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          days: month
         });
+        monthStart.setMonth(monthStart.getMonth() + 1);
       }
       
       currentOffset = 0; // Start at most recent
     }
 
     function getVisibleDates() {
-      const daysToShow = currentView === 'week' ? 7 : 30;
-      const endIndex = allDates.length - (currentOffset * daysToShow);
-      const startIndex = Math.max(0, endIndex - daysToShow);
-      return allDates.slice(startIndex, endIndex);
+      if (currentView === 'week') {
+        const weekIndex = allWeeks.length - 1 - currentOffset;
+        return weekIndex >= 0 ? allWeeks[weekIndex] : [];
+      } else {
+        const monthIndex = allMonths.length - 1 - currentOffset;
+        return monthIndex >= 0 ? allMonths[monthIndex].days : [];
+      }
     }
 
     function getMaxOffset() {
-      const daysToShow = currentView === 'week' ? 7 : 30;
-      return Math.ceil(allDates.length / daysToShow) - 1;
+      if (currentView === 'week') {
+        return allWeeks.length - 1;
+      } else {
+        return allMonths.length - 1;
+      }
     }
 
     function updatePeriodLabel() {
-      const visible = getVisibleDates();
-      if (visible.length === 0) {
-        document.getElementById('periodLabel').textContent = 'No data';
-        return;
+      if (currentView === 'week') {
+        const weekIndex = allWeeks.length - 1 - currentOffset;
+        if (weekIndex < 0 || !allWeeks[weekIndex]) {
+          document.getElementById('periodLabel').textContent = 'No data';
+          return;
+        }
+        const week = allWeeks[weekIndex];
+        const startDate = week[0].displayDate;
+        const endDate = week[6].displayDate;
+        document.getElementById('periodLabel').textContent = `${startDate} - ${endDate}`;
+      } else {
+        const monthIndex = allMonths.length - 1 - currentOffset;
+        if (monthIndex < 0 || !allMonths[monthIndex]) {
+          document.getElementById('periodLabel').textContent = 'No data';
+          return;
+        }
+        document.getElementById('periodLabel').textContent = allMonths[monthIndex].label;
       }
-      
-      const startDate = visible[0].displayDate;
-      const endDate = visible[visible.length - 1].displayDate;
-      document.getElementById('periodLabel').textContent = `${startDate} - ${endDate}`;
       
       // Update button states
       document.getElementById('nextPeriod').disabled = currentOffset === 0;
@@ -887,14 +959,22 @@
         ? visible.map(d => `${d.dayName}\n${d.displayDate}`)
         : visible.map(d => d.displayDate);
       
-      const data = visible.map(d => d.count);
-      const maxCount = Math.max(...data, 1);
+      // For chart data, use 0 for future days but track them separately
+      const data = visible.map(d => d.isFuture ? 0 : d.count);
+      const maxCount = Math.max(...data.filter(c => c !== null), 1);
       
-      // Color bars based on count
-      const backgroundColors = data.map(count => {
-        if (count === 0) return 'rgba(85, 85, 102, 0.3)';
-        const intensity = Math.min(count / maxCount, 1);
+      // Color bars based on count and future status
+      const backgroundColors = visible.map((d, i) => {
+        if (d.isFuture) return 'rgba(42, 42, 58, 0.3)'; // Very faded for future
+        if (d.count === 0) return 'rgba(85, 85, 102, 0.4)';
+        const intensity = Math.min(d.count / maxCount, 1);
         return `rgba(0, 212, 255, ${0.4 + intensity * 0.5})`;
+      });
+      
+      const borderColors = visible.map((d, i) => {
+        if (d.isFuture) return 'rgba(42, 42, 58, 0.5)';
+        if (d.count === 0) return '#555566';
+        return '#00d4ff';
       });
 
       dailyChart = new Chart(document.getElementById('dailyChart'), {
@@ -905,7 +985,7 @@
             label: 'Applications',
             data: data,
             backgroundColor: backgroundColors,
-            borderColor: data.map(count => count > 0 ? '#00d4ff' : '#555566'),
+            borderColor: borderColors,
             borderWidth: 1,
             borderRadius: 6,
             borderSkipped: false
@@ -945,13 +1025,20 @@
               displayColors: false,
               titleFont: { family: 'Outfit', size: 14 },
               bodyFont: { family: 'Space Mono', size: 16, weight: 'bold' },
+              filter: (item) => {
+                // Don't show tooltip for future days
+                return !visible[item.dataIndex].isFuture;
+              },
               callbacks: {
                 title: (items) => {
+                  if (items.length === 0) return '';
                   const idx = items[0].dataIndex;
                   return visible[idx].date;
                 },
                 label: (item) => {
-                  const count = item.raw;
+                  const idx = item.dataIndex;
+                  if (visible[idx].isFuture) return '';
+                  const count = visible[idx].count;
                   return count === 0 ? 'No applications' : 
                          count === 1 ? '1 application' : 
                          `${count} applications`;
