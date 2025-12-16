@@ -589,10 +589,6 @@
                 <span class="rate-value" id="rateMonth">0</span>
                 <span class="rate-label">/mo</span>
               </div>
-              <div class="rate-item">
-                <span class="rate-value" id="rateYear">0</span>
-                <span class="rate-label">/yr</span>
-              </div>
             </div>
           </div>
           <div class="chart-controls">
@@ -905,13 +901,11 @@
       const perDay = totalApps / daysActive;
       const perWeek = perDay * 7;
       const perMonth = perDay * 30;
-      const perYear = perDay * 365;
       
       // Update display
       document.getElementById('rateDay').textContent = perDay.toFixed(1);
       document.getElementById('rateWeek').textContent = perWeek.toFixed(1);
       document.getElementById('rateMonth').textContent = perMonth.toFixed(0);
-      document.getElementById('rateYear').textContent = perYear.toFixed(0);
     }
 
     let allWeeks = [];
