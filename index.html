@@ -137,7 +137,7 @@
 
     @media (max-width: 1200px) {
       .stats-grid {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       }
     }
 
@@ -210,6 +210,19 @@
       align-items: center;
       gap: 12px;
       margin: 0;
+    }
+
+    .chart-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .period-total {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
     }
 
     .chart-header {
@@ -530,7 +543,10 @@
 
       <div class="chart-card" style="margin-bottom: 40px;">
         <div class="chart-header">
-          <h3 class="chart-title">📅 Daily Applications</h3>
+          <div class="chart-title-group">
+            <h3 class="chart-title">📊 Application Activity</h3>
+            <span class="period-total" id="periodTotal">0 applications</span>
+          </div>
           <div class="chart-controls">
             <button class="view-btn active" data-view="week">Week</button>
             <button class="view-btn" data-view="month">Month</button>
@@ -926,6 +942,15 @@
     }
 
     function updatePeriodLabel() {
+      const visible = getVisibleDates();
+      
+      // Calculate total for the period (excluding future days)
+      const periodTotal = visible.reduce((sum, d) => sum + (d.isFuture ? 0 : (d.count || 0)), 0);
+      const periodType = currentView === 'week' ? 'this week' : 'this month';
+      document.getElementById('periodTotal').textContent = 
+        periodTotal === 1 ? '1 application ' + periodType : 
+        `${periodTotal} applications ${periodType}`;
+      
       if (currentView === 'week') {
         const weekIndex = allWeeks.length - 1 - currentOffset;
         if (weekIndex < 0 || !allWeeks[weekIndex]) {
