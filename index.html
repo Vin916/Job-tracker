@@ -192,11 +192,87 @@
     .chart-title {
       font-size: 1.2rem;
       font-weight: 600;
-      margin-bottom: 20px;
       color: var(--text-primary);
       display: flex;
       align-items: center;
       gap: 10px;
+      margin: 0;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .chart-controls {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .view-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+
+    .view-btn:hover {
+      border-color: var(--accent-cyan);
+      color: var(--text-primary);
+    }
+
+    .view-btn.active {
+      background: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+      color: var(--bg-primary);
+      font-weight: 600;
+    }
+
+    .nav-buttons {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      border-color: var(--accent-magenta);
+      color: var(--text-primary);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .period-label {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      min-width: 140px;
+      text-align: center;
+      font-family: 'Space Mono', monospace;
     }
 
     .chart-container {
@@ -439,9 +515,20 @@
       </div>
 
       <div class="chart-card" style="margin-bottom: 40px;">
-        <h3 class="chart-title">🏢 Top Companies Applied To</h3>
-        <div class="chart-container">
-          <canvas id="companiesChart"></canvas>
+        <div class="chart-header">
+          <h3 class="chart-title">📅 Daily Applications</h3>
+          <div class="chart-controls">
+            <button class="view-btn active" data-view="week">Week</button>
+            <button class="view-btn" data-view="month">Month</button>
+            <div class="nav-buttons">
+              <button class="nav-btn" id="prevPeriod">← Prev</button>
+              <span class="period-label" id="periodLabel">Current Week</span>
+              <button class="nav-btn" id="nextPeriod">Next →</button>
+            </div>
+          </div>
+        </div>
+        <div class="chart-container" style="height: 350px;">
+          <canvas id="dailyChart"></canvas>
         </div>
       </div>
 
@@ -481,7 +568,10 @@
 
   <script>
     let jobsData = [];
-    let statusChart, timelineChart, companiesChart;
+    let statusChart, timelineChart, dailyChart;
+    let currentView = 'week';
+    let currentOffset = 0;
+    let allDates = [];
 
     const uploadZone = document.getElementById('uploadZone');
     const fileInput = document.getElementById('fileInput');
@@ -622,7 +712,7 @@
       // Destroy existing charts
       if (statusChart) statusChart.destroy();
       if (timelineChart) timelineChart.destroy();
-      if (companiesChart) companiesChart.destroy();
+      if (dailyChart) dailyChart.destroy();
 
       // Status distribution chart
       const statusCounts = {};
@@ -660,7 +750,7 @@
         }
       });
 
-      // Timeline chart
+      // Timeline chart (monthly)
       const dateCounts = {};
       jobsData.forEach(job => {
         if (job.appliedDate && job.appliedDate !== 'N/A') {
@@ -708,49 +798,184 @@
         }
       });
 
-      // Top companies chart
-      const companyCounts = {};
+      // Build daily data and setup controls
+      buildDailyData();
+      setupDailyChartControls();
+      renderDailyChart();
+    }
+
+    function buildDailyData() {
+      // Get all unique dates with applications
+      const dailyCounts = {};
       jobsData.forEach(job => {
-        if (job.company) {
-          companyCounts[job.company] = (companyCounts[job.company] || 0) + 1;
+        if (job.appliedDate && job.appliedDate !== 'N/A') {
+          dailyCounts[job.appliedDate] = (dailyCounts[job.appliedDate] || 0) + 1;
         }
       });
+      
+      // Get date range
+      const dates = Object.keys(dailyCounts).sort();
+      if (dates.length === 0) return;
+      
+      const firstDate = new Date(dates[0]);
+      const today = new Date();
+      
+      // Generate all dates from first application to today
+      allDates = [];
+      for (let d = new Date(firstDate); d <= today; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        allDates.push({
+          date: dateStr,
+          count: dailyCounts[dateStr] || 0,
+          dayOfWeek: d.getDay(),
+          dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+          displayDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        });
+      }
+      
+      currentOffset = 0; // Start at most recent
+    }
 
-      const topCompanies = Object.entries(companyCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
+    function getVisibleDates() {
+      const daysToShow = currentView === 'week' ? 7 : 30;
+      const endIndex = allDates.length - (currentOffset * daysToShow);
+      const startIndex = Math.max(0, endIndex - daysToShow);
+      return allDates.slice(startIndex, endIndex);
+    }
 
-      companiesChart = new Chart(document.getElementById('companiesChart'), {
+    function getMaxOffset() {
+      const daysToShow = currentView === 'week' ? 7 : 30;
+      return Math.ceil(allDates.length / daysToShow) - 1;
+    }
+
+    function updatePeriodLabel() {
+      const visible = getVisibleDates();
+      if (visible.length === 0) {
+        document.getElementById('periodLabel').textContent = 'No data';
+        return;
+      }
+      
+      const startDate = visible[0].displayDate;
+      const endDate = visible[visible.length - 1].displayDate;
+      document.getElementById('periodLabel').textContent = `${startDate} - ${endDate}`;
+      
+      // Update button states
+      document.getElementById('nextPeriod').disabled = currentOffset === 0;
+      document.getElementById('prevPeriod').disabled = currentOffset >= getMaxOffset();
+    }
+
+    function renderDailyChart() {
+      if (dailyChart) dailyChart.destroy();
+      
+      const visible = getVisibleDates();
+      if (visible.length === 0) return;
+      
+      const labels = currentView === 'week' 
+        ? visible.map(d => `${d.dayName}\n${d.displayDate}`)
+        : visible.map(d => d.displayDate);
+      
+      const data = visible.map(d => d.count);
+      const maxCount = Math.max(...data, 1);
+      
+      // Color bars based on count
+      const backgroundColors = data.map(count => {
+        if (count === 0) return 'rgba(85, 85, 102, 0.3)';
+        const intensity = Math.min(count / maxCount, 1);
+        return `rgba(0, 212, 255, ${0.4 + intensity * 0.5})`;
+      });
+
+      dailyChart = new Chart(document.getElementById('dailyChart'), {
         type: 'bar',
         data: {
-          labels: topCompanies.map(c => c[0]),
+          labels: labels,
           datasets: [{
             label: 'Applications',
-            data: topCompanies.map(c => c[1]),
-            backgroundColor: 'rgba(255, 0, 170, 0.7)',
-            borderColor: '#ff00aa',
+            data: data,
+            backgroundColor: backgroundColors,
+            borderColor: data.map(count => count > 0 ? '#00d4ff' : '#555566'),
             borderWidth: 1,
-            borderRadius: 6
+            borderRadius: 6,
+            borderSkipped: false
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          indexAxis: 'y',
           scales: {
-            x: {
+            y: {
               beginAtZero: true,
               grid: { color: '#2a2a3a' },
-              ticks: { color: '#8888aa', font: { family: 'Space Mono' } }
+              ticks: { 
+                color: '#8888aa', 
+                font: { family: 'Space Mono' },
+                stepSize: 1
+              }
             },
-            y: {
+            x: {
               grid: { display: false },
-              ticks: { color: '#8888aa', font: { family: 'Outfit' } }
+              ticks: { 
+                color: '#8888aa', 
+                font: { family: 'Outfit', size: currentView === 'week' ? 12 : 10 },
+                maxRotation: currentView === 'month' ? 45 : 0
+              }
             }
           },
           plugins: {
-            legend: { display: false }
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1a1a25',
+              titleColor: '#ffffff',
+              bodyColor: '#00d4ff',
+              borderColor: '#2a2a3a',
+              borderWidth: 1,
+              padding: 12,
+              displayColors: false,
+              titleFont: { family: 'Outfit', size: 14 },
+              bodyFont: { family: 'Space Mono', size: 16, weight: 'bold' },
+              callbacks: {
+                title: (items) => {
+                  const idx = items[0].dataIndex;
+                  return visible[idx].date;
+                },
+                label: (item) => {
+                  const count = item.raw;
+                  return count === 0 ? 'No applications' : 
+                         count === 1 ? '1 application' : 
+                         `${count} applications`;
+                }
+              }
+            }
           }
+        }
+      });
+      
+      updatePeriodLabel();
+    }
+
+    function setupDailyChartControls() {
+      // View toggle buttons
+      document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentView = btn.dataset.view;
+          currentOffset = 0;
+          renderDailyChart();
+        });
+      });
+      
+      // Navigation buttons
+      document.getElementById('prevPeriod').addEventListener('click', () => {
+        if (currentOffset < getMaxOffset()) {
+          currentOffset++;
+          renderDailyChart();
+        }
+      });
+      
+      document.getElementById('nextPeriod').addEventListener('click', () => {
+        if (currentOffset > 0) {
+          currentOffset--;
+          renderDailyChart();
         }
       });
     }
