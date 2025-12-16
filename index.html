@@ -225,6 +225,35 @@
       color: var(--accent-cyan);
     }
 
+    .rate-stats {
+      display: flex;
+      gap: 24px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .rate-item {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .rate-value {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .rate-label {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
     .chart-header {
       display: flex;
       justify-content: space-between;
@@ -547,6 +576,24 @@
           <div class="chart-title-group">
             <h3 class="chart-title">📊 Application Activity</h3>
             <span class="period-total" id="periodTotal">0 applications</span>
+            <div class="rate-stats" id="rateStats">
+              <div class="rate-item">
+                <span class="rate-value" id="rateDay">0</span>
+                <span class="rate-label">/day</span>
+              </div>
+              <div class="rate-item">
+                <span class="rate-value" id="rateWeek">0</span>
+                <span class="rate-label">/wk</span>
+              </div>
+              <div class="rate-item">
+                <span class="rate-value" id="rateMonth">0</span>
+                <span class="rate-label">/mo</span>
+              </div>
+              <div class="rate-item">
+                <span class="rate-value" id="rateYear">0</span>
+                <span class="rate-label">/yr</span>
+              </div>
+            </div>
           </div>
           <div class="chart-controls">
             <button class="view-btn active" data-view="week">Week</button>
@@ -831,8 +878,40 @@
 
       // Build daily data and setup controls
       buildDailyData();
+      calculateRateStats();
       setupDailyChartControls();
       renderDailyChart();
+    }
+
+    function calculateRateStats() {
+      // Get all dates with applications
+      const dates = jobsData
+        .filter(job => job.appliedDate && job.appliedDate !== 'N/A')
+        .map(job => new Date(job.appliedDate))
+        .sort((a, b) => a - b);
+      
+      if (dates.length === 0) return;
+      
+      const firstDate = dates[0];
+      const lastDate = dates[dates.length - 1];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Calculate days active (from first application to today)
+      const daysActive = Math.max(1, Math.ceil((today - firstDate) / (1000 * 60 * 60 * 24)) + 1);
+      const totalApps = jobsData.filter(job => job.appliedDate && job.appliedDate !== 'N/A').length;
+      
+      // Calculate rates
+      const perDay = totalApps / daysActive;
+      const perWeek = perDay * 7;
+      const perMonth = perDay * 30;
+      const perYear = perDay * 365;
+      
+      // Update display
+      document.getElementById('rateDay').textContent = perDay.toFixed(1);
+      document.getElementById('rateWeek').textContent = perWeek.toFixed(1);
+      document.getElementById('rateMonth').textContent = perMonth.toFixed(0);
+      document.getElementById('rateYear').textContent = perYear.toFixed(0);
     }
 
     let allWeeks = [];
